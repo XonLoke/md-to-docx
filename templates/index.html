@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Markdown → DOCX Converter</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #1f497d 0%, #2e74b5 100%);
+      color: #fff;
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    header svg { flex-shrink: 0; }
+    header h1  { font-size: 1.6rem; font-weight: 700; letter-spacing: -.5px; }
+    header p   { font-size: .9rem; opacity: .85; margin-top: .2rem; }
+
+    /* ── Main layout ─────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    @media (max-width: 860px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* ── Panels ──────────────────────────────────────────────────────── */
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      background: #f7fafc;
+      border-bottom: 1px solid #e2e8f0;
+      padding: .75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+    }
+    .panel-header h2 {
+      font-size: .95rem;
+      font-weight: 600;
+      color: #2d3748;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+    }
+    .panel-body { flex: 1; display: flex; flex-direction: column; padding: 1rem; }
+
+    /* ── Textarea ────────────────────────────────────────────────────── */
+    #md-input {
+      flex: 1;
+      width: 100%;
+      min-height: 420px;
+      border: 1.5px solid #cbd5e0;
+      border-radius: 8px;
+      padding: .85rem 1rem;
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: .88rem;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      transition: border-color .2s;
+      color: #2d3748;
+    }
+    #md-input:focus { border-color: #2e74b5; box-shadow: 0 0 0 3px rgba(46,116,181,.15); }
+
+    /* ── Preview ─────────────────────────────────────────────────────── */
+    #preview {
+      flex: 1;
+      min-height: 420px;
+      border: 1.5px solid #cbd5e0;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      overflow-y: auto;
+      font-size: .92rem;
+      line-height: 1.7;
+      color: #2d3748;
+    }
+    /* Preview markdown styles */
+    #preview h1 { font-size: 1.7rem; color: #1f497d; border-bottom: 2px solid #e2e8f0; padding-bottom: .3rem; margin: 1rem 0 .5rem; }
+    #preview h2 { font-size: 1.35rem; color: #2e74b5; border-bottom: 1px solid #e2e8f0; padding-bottom: .2rem; margin: .9rem 0 .4rem; }
+    #preview h3 { font-size: 1.1rem; color: #2e74b5; margin: .8rem 0 .3rem; }
+    #preview h4,#preview h5,#preview h6 { font-size: 1rem; color: #4a5568; margin: .7rem 0 .3rem; }
+    #preview p  { margin: .5rem 0; }
+    #preview ul,#preview ol { padding-left: 1.5rem; margin: .4rem 0; }
+    #preview li { margin: .2rem 0; }
+    #preview code {
+      background: #f2f2f2; color: #c7254e;
+      padding: .1em .35em; border-radius: 4px;
+      font-family: "Cascadia Code","Fira Code","Consolas",monospace;
+      font-size: .85em;
+    }
+    #preview pre {
+      background: #f2f2f2; border-radius: 8px;
+      padding: .85rem 1rem; overflow-x: auto;
+      margin: .6rem 0;
+    }
+    #preview pre code { background: none; color: #24292e; padding: 0; }
+    #preview blockquote {
+      border-left: 4px solid #2e74b5;
+      margin: .6rem 0; padding: .4rem .9rem;
+      color: #595959; font-style: italic;
+      background: #f7fafc; border-radius: 0 6px 6px 0;
+    }
+    #preview table { border-collapse: collapse; width: 100%; margin: .6rem 0; font-size: .9rem; }
+    #preview th {
+      background: #1f497d; color: #fff;
+      padding: .5rem .75rem; text-align: left;
+    }
+    #preview td { padding: .45rem .75rem; border: 1px solid #e2e8f0; }
+    #preview tr:nth-child(even) td { background: #deeaf1; }
+    #preview a { color: #0056b3; text-decoration: underline; }
+    #preview hr { border: none; border-top: 2px solid #e2e8f0; margin: 1rem 0; }
+    #preview img { max-width: 100%; border-radius: 6px; }
+    #preview strong { font-weight: 700; }
+    #preview em { font-style: italic; }
+    #preview del { text-decoration: line-through; color: #718096; }
+
+    /* ── Controls ────────────────────────────────────────────────────── */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem;
+      align-items: center;
+      padding: .85rem 2rem;
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      box-shadow: 0 2px 6px rgba(0,0,0,.06);
+    }
+    .filename-wrap {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      flex: 1;
+      min-width: 200px;
+    }
+    .filename-wrap label { font-size: .85rem; color: #4a5568; white-space: nowrap; }
+    .filename-wrap input {
+      flex: 1;
+      border: 1.5px solid #cbd5e0;
+      border-radius: 8px;
+      padding: .5rem .75rem;
+      font-size: .9rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .filename-wrap input:focus { border-color: #2e74b5; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .55rem 1.2rem;
+      border: none; border-radius: 8px;
+      font-size: .9rem; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #1f497d, #2e74b5);
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(31,73,125,.35);
+    }
+    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-secondary {
+      background: #edf2f7; color: #2d3748;
+      border: 1.5px solid #cbd5e0;
+    }
+    .btn-secondary:hover { background: #e2e8f0; }
+
+    /* ── Upload button ───────────────────────────────────────────────── */
+    .btn-upload {
+      display: inline-flex; align-items: center; gap: .4rem;
+      padding: .5rem 1rem;
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      background: #fff;
+      font-size: .85rem;
+      color: #4a5568;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .btn-upload:hover { border-color: #2e74b5; color: #2e74b5; background: #ebf4ff; }
+    .btn-upload:active { transform: scale(.97); }
+    #file-input { display: none; }
+
+    /* ── Toast ───────────────────────────────────────────────────────── */
+    #toast {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      background: #e53e3e; color: #fff;
+      padding: .75rem 1.25rem; border-radius: 10px;
+      font-size: .9rem; font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0,0,0,.2);
+      opacity: 0; pointer-events: none;
+      transition: opacity .3s;
+      z-index: 999;
+    }
+    #toast.show { opacity: 1; }
+    #toast.success { background: #38a169; }
+
+    /* ── Spinner ─────────────────────────────────────────────────────── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 3px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Char counter ────────────────────────────────────────────────── */
+    .char-count { font-size: .78rem; color: #a0aec0; }
+
+    /* ── Sample badge ────────────────────────────────────────────────── */
+    .badge {
+      font-size: .72rem; background: #ebf4ff; color: #2e74b5;
+      border: 1px solid #bee3f8; border-radius: 20px;
+      padding: .15rem .55rem; cursor: pointer;
+      transition: background .2s;
+    }
+    .badge:hover { background: #bee3f8; }
+
+    footer {
+      text-align: center;
+      padding: .75rem;
+      font-size: .78rem;
+      color: #a0aec0;
+      border-top: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<header>
+  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+    <rect width="40" height="40" rx="10" fill="rgba(255,255,255,.15)"/>
+    <text x="7" y="28" font-size="22" fill="white" font-family="monospace" font-weight="bold">M↓</text>
+  </svg>
+  <div>
+    <h1>Markdown → DOCX Converter</h1>
+    <p>Paste or upload your Markdown and download a beautifully formatted Word document</p>
+  </div>
+</header>
+
+<!-- ── Controls bar ─────────────────────────────────────────────────────── -->
+<div class="controls">
+  <!-- File upload: real button triggers hidden input -->
+  <button type="button" class="btn-upload" id="upload-btn">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Upload .md file
+  </button>
+  <input type="file" id="file-input" accept=".md,.markdown,.txt" />
+
+  <!-- Filename -->
+  <div class="filename-wrap">
+    <label for="filename">Output filename:</label>
+    <input type="text" id="filename" value="document" placeholder="document" />
+    <span style="font-size:.85rem;color:#718096;">.docx</span>
+  </div>
+
+  <!-- Clear -->
+  <button class="btn btn-secondary" id="clear-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+    Clear
+  </button>
+
+  <!-- Convert -->
+  <button class="btn btn-primary" id="convert-btn">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span id="btn-label">Download DOCX</span>
+    <div class="spinner" id="spinner"></div>
+  </button>
+</div>
+
+<!-- ── Editor + Preview ────────────────────────────────────────────────── -->
+<main>
+  <!-- Left: editor -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2e74b5" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Markdown Input
+      </h2>
+      <div style="display:flex;gap:.5rem;align-items:center;">
+        <span class="badge" id="load-sample">Load sample</span>
+        <span class="char-count" id="char-count">0 chars</span>
+      </div>
+    </div>
+    <div class="panel-body">
+      <textarea id="md-input" placeholder="# Hello World&#10;&#10;Type or paste your **Markdown** here…&#10;&#10;- Supports headings, lists, tables&#10;- Code blocks, blockquotes, bold/italic&#10;- And much more!"></textarea>
+    </div>
+  </div>
+
+  <!-- Right: live preview -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2e74b5" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        Live Preview
+      </h2>
+      <span style="font-size:.78rem;color:#a0aec0;">Rendered output</span>
+    </div>
+    <div class="panel-body">
+      <div id="preview"><p style="color:#a0aec0;font-style:italic;">Preview will appear here as you type…</p></div>
+    </div>
+  </div>
+</main>
+
+<footer>Built with Python · Flask · python-docx</footer>
+
+<!-- ── Toast ────────────────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<!-- ── marked.js (CDN) for live preview ─────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<script>
+  const mdInput    = document.getElementById("md-input");
+  const preview    = document.getElementById("preview");
+  const charCount  = document.getElementById("char-count");
+  const convertBtn = document.getElementById("convert-btn");
+  const btnLabel   = document.getElementById("btn-label");
+  const spinner    = document.getElementById("spinner");
+  const fileInput  = document.getElementById("file-input");
+  const uploadBtn  = document.getElementById("upload-btn");
+  const clearBtn   = document.getElementById("clear-btn");
+  const toast      = document.getElementById("toast");
+  const filenameEl = document.getElementById("filename");
+
+  // ── Live preview ──────────────────────────────────────────────────────────
+  marked.setOptions({ breaks: true, gfm: true });
+
+  function updatePreview() {
+    const md = mdInput.value;
+    charCount.textContent = md.length.toLocaleString() + " chars";
+    preview.innerHTML = md.trim()
+      ? marked.parse(md)
+      : '<p style="color:#a0aec0;font-style:italic;">Preview will appear here as you type…</p>';
+  }
+
+  mdInput.addEventListener("input", updatePreview);
+
+  // ── File upload — button triggers hidden input ────────────────────────────
+  uploadBtn.addEventListener("click", () => {
+    fileInput.value = "";   // reset so same file can be re-selected
+    fileInput.click();
+  });
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      mdInput.value    = e.target.result;
+      filenameEl.value = file.name.replace(/\.(md|markdown|txt)$/i, "");
+      updatePreview();
+      showToast(`✅ Loaded: ${file.name}`, "success");
+    };
+    reader.onerror = () => showToast("❌ Failed to read file.");
+    reader.readAsText(file);
+  });
+
+  // ── Drag & drop onto textarea ─────────────────────────────────────────────
+  mdInput.addEventListener("dragover", e => { e.preventDefault(); mdInput.style.borderColor = "#2e74b5"; });
+  mdInput.addEventListener("dragleave", () => { mdInput.style.borderColor = ""; });
+  mdInput.addEventListener("drop", e => {
+    e.preventDefault();
+    mdInput.style.borderColor = "";
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => { mdInput.value = ev.target.result; updatePreview(); };
+    reader.readAsText(file);
+  });
+
+  // ── Clear ─────────────────────────────────────────────────────────────────
+  clearBtn.addEventListener("click", () => {
+    mdInput.value = "";
+    updatePreview();
+    filenameEl.value = "document";
+  });
+
+  // ── Toast helper ──────────────────────────────────────────────────────────
+  function showToast(msg, type = "error") {
+    toast.textContent = msg;
+    toast.className   = "show" + (type === "success" ? " success" : "");
+    setTimeout(() => { toast.className = ""; }, 3500);
+  }
+
+  // ── Convert & download ────────────────────────────────────────────────────
+  convertBtn.addEventListener("click", async () => {
+    const md = mdInput.value.trim();
+    if (!md) { showToast("Please enter some Markdown content first."); return; }
+
+    // Loading state
+    btnLabel.textContent = "Converting…";
+    spinner.style.display = "block";
+    convertBtn.disabled   = true;
+
+    try {
+      const filename = filenameEl.value.trim() || "document";
+      const res = await fetch("/convert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markdown: md, filename })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
+
+      // Trigger download
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = filename + ".docx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast("✅ DOCX downloaded successfully!", "success");
+
+    } catch (err) {
+      showToast("❌ " + err.message);
+    } finally {
+      btnLabel.textContent  = "Download DOCX";
+      spinner.style.display = "none";
+      convertBtn.disabled   = false;
+    }
+  });
+
+  // ── Sample markdown ───────────────────────────────────────────────────────
+  const SAMPLE = `# Project Report
+
+## Introduction
+
+This document was generated from **Markdown** using the *MD → DOCX Converter*.
+It demonstrates all supported formatting features.
+
+---
+
+## Features
+
+### Text Formatting
+
+You can use **bold**, *italic*, ***bold italic***, ~~strikethrough~~, and \`inline code\`.
+
+### Lists
+
+**Unordered:**
+- Item one
+- Item two
+  - Nested item
+  - Another nested item
+- Item three
+
+**Ordered:**
+1. First step
+2. Second step
+3. Third step
+
+### Blockquote
+
+> "Any sufficiently advanced technology is indistinguishable from magic."
+> — Arthur C. Clarke
+
+### Code Block
+
+\`\`\`python
+def greet(name: str) -> str:
+    return f"Hello, {name}!"
+
+print(greet("World"))
+\`\`\`
+
+### Table
+
+| Name    | Role        | Status  |
+|---------|-------------|---------|
+| Alice   | Developer   | Active  |
+| Bob     | Designer    | Active  |
+| Charlie | Manager     | On leave|
+
+## Conclusion
+
+The converter handles headings, paragraphs, **inline styles**, lists,
+code blocks, tables, blockquotes, and horizontal rules — all exported
+to a clean, professional Word document.
+`;
+
+  document.getElementById("load-sample").addEventListener("click", () => {
+    mdInput.value = SAMPLE;
+    updatePreview();
+    filenameEl.value = "sample-report";
+  });
+
+  // Initial render
+  updatePreview();
+</script>
+</body>
+</html>
