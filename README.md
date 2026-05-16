@@ -58,7 +58,7 @@ Or open **Windows Terminal** / **PowerShell**.
 ### Step 2 — Navigate to the app folder
 
 ```cmd
-cd D:\sep_venv\md-to-docx
+cd /d D:\sep_venv\md-to-docx
 ```
 
 ### Step 3 — Start the server
