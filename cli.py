@@ -10,6 +10,11 @@ Usage:
 import sys
 import os
 import argparse
+
+# Fix Unicode display on Windows terminals (emoji in cp1252)
+if sys.platform == "win32":
+    sys.stdout = open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)
+
 from converter import convert_markdown_to_docx
 
 
