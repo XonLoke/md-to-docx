@@ -3,12 +3,17 @@ Flask web application for Markdown → DOCX conversion.
 """
 
 import os
+import sys
 import uuid
 from flask import (Flask, render_template, request,
                    send_file, jsonify, after_this_request)
 from werkzeug.utils import secure_filename
 from converter import convert_markdown_to_docx
 import io
+
+# Fix Unicode display on Windows terminals (emoji in cp1252)
+if sys.platform == "win32":
+    sys.stdout = open(sys.stdout.fileno(), mode="w", encoding="utf-8", buffering=1)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024   # 10 MB upload limit
